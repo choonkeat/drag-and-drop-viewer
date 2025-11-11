@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Markdown Viewer</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -375,9 +376,9 @@
     </div>
     <div class="md-viewer-container">
         <div class="md-viewer-dropzone" id="dropzone">
-            Drop or click to select files (.md, .txt)
+            Drop or click to select files (.md, .txt, .csv)
         </div>
-        <input type="file" id="fileInput" accept=".md,.txt" multiple style="display: none;">
+        <input type="file" id="fileInput" accept=".md,.txt,.csv" multiple style="display: none;">
         <div class="md-viewer-content" id="content">
             <div class="md-viewer-filename" id="filename"></div>
             <div id="rendered"></div>
@@ -438,7 +439,7 @@
             const files = e.target.files;
             if (files.length > 0) {
                 const validFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.md') || f.name.endsWith('.txt')
+                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv')
                 );
                 if (validFiles.length > 0) {
                     processFilesSequentially(validFiles);
@@ -486,13 +487,13 @@
             const files = dt.files;
 
             if (files.length > 0) {
-                // Filter for .md and .txt files
+                // Filter for .md, .txt, and .csv files
                 const validFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.md') || f.name.endsWith('.txt')
+                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv')
                 );
 
                 if (validFiles.length === 0) {
-                    alert('Please drop at least one .md or .txt file');
+                    alert('Please drop at least one .md, .txt, or .csv file');
                     return;
                 }
 
@@ -577,8 +578,9 @@
             return new Promise((resolve) => {
                 const isMd = file.name.endsWith('.md');
                 const isTxt = file.name.endsWith('.txt');
+                const isCsv = file.name.endsWith('.csv');
 
-                if (!isMd && !isTxt) {
+                if (!isMd && !isTxt && !isCsv) {
                     resolve(null);
                     return;
                 }
@@ -600,6 +602,50 @@
                             .replace(/"/g, '&quot;')
                             .replace(/'/g, '&#039;');
                         html = `<pre class="txt-content">${escaped}</pre>`;
+                    } else if (isCsv) {
+                        // Parse CSV with PapaParse
+                        const parsed = Papa.parse(content, {
+                            header: true,
+                            skipEmptyLines: true
+                        });
+
+                        if (parsed.errors.length > 0) {
+                            console.warn('CSV parsing warnings:', parsed.errors);
+                        }
+
+                        // Generate HTML table
+                        const headers = parsed.meta.fields || [];
+                        const rows = parsed.data;
+
+                        let tableHtml = '<table><thead><tr>';
+                        headers.forEach(header => {
+                            const escaped = String(header)
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
+                            tableHtml += `<th>${escaped}</th>`;
+                        });
+                        tableHtml += '</tr></thead><tbody>';
+
+                        rows.forEach(row => {
+                            tableHtml += '<tr>';
+                            headers.forEach(header => {
+                                const value = row[header] || '';
+                                const escaped = String(value)
+                                    .replace(/&/g, '&amp;')
+                                    .replace(/</g, '&lt;')
+                                    .replace(/>/g, '&gt;')
+                                    .replace(/"/g, '&quot;')
+                                    .replace(/'/g, '&#039;');
+                                tableHtml += `<td>${escaped}</td>`;
+                            });
+                            tableHtml += '</tr>';
+                        });
+
+                        tableHtml += '</tbody></table>';
+                        html = tableHtml;
                     }
 
                     resolve({
