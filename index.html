@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Markdown Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -338,6 +341,20 @@
             margin: 0;
         }
 
+        .md-viewer-content pre.language-json {
+            background: #f6f8fa;
+            padding: 1.5em;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 0;
+        }
+
+        .md-viewer-content pre.language-json code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.875em;
+            line-height: 1.5;
+        }
+
         .md-viewer-filename {
             font-size: 0.875rem;
             color: #666;
@@ -389,9 +406,9 @@
     </div>
     <div class="md-viewer-container">
         <div class="md-viewer-dropzone" id="dropzone">
-            Drop or click to select files (.md, .txt, .csv)
+            Drop or click to select files (.md, .txt, .csv, .json)
         </div>
-        <input type="file" id="fileInput" accept=".md,.txt,.csv" multiple style="display: none;">
+        <input type="file" id="fileInput" accept=".md,.txt,.csv,.json" multiple style="display: none;">
         <div class="md-viewer-content" id="content">
             <div class="md-viewer-filename" id="filename"></div>
             <div id="rendered"></div>
@@ -456,7 +473,7 @@
             const files = e.target.files;
             if (files.length > 0) {
                 const validFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv')
+                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv') || f.name.endsWith('.json')
                 );
                 if (validFiles.length > 0) {
                     processFilesSequentially(validFiles);
@@ -504,13 +521,13 @@
             const files = dt.files;
 
             if (files.length > 0) {
-                // Filter for .md, .txt, and .csv files
+                // Filter for .md, .txt, .csv, and .json files
                 const validFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv')
+                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv') || f.name.endsWith('.json')
                 );
 
                 if (validFiles.length === 0) {
-                    alert('Please drop at least one .md, .txt, or .csv file');
+                    alert('Please drop at least one .md, .txt, .csv, or .json file');
                     return;
                 }
 
@@ -596,8 +613,9 @@
                 const isMd = file.name.endsWith('.md');
                 const isTxt = file.name.endsWith('.txt');
                 const isCsv = file.name.endsWith('.csv');
+                const isJson = file.name.endsWith('.json');
 
-                if (!isMd && !isTxt && !isCsv) {
+                if (!isMd && !isTxt && !isCsv && !isJson) {
                     resolve(null);
                     return;
                 }
@@ -619,6 +637,24 @@
                             .replace(/"/g, '&quot;')
                             .replace(/'/g, '&#039;');
                         html = `<pre class="txt-content">${escaped}</pre>`;
+                    } else if (isJson) {
+                        // Parse and syntax highlight JSON
+                        try {
+                            const obj = JSON.parse(content);
+                            const prettyJson = JSON.stringify(obj, null, 2);
+                            const highlighted = Prism.highlight(prettyJson, Prism.languages.json, 'json');
+                            html = `<pre class="language-json"><code>${highlighted}</code></pre>`;
+                        } catch (err) {
+                            // If JSON is invalid, show error
+                            const errorMsg = `JSON Parse Error: ${err.message}`;
+                            const escaped = content
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
+                            html = `<div style="color: #d32f2f; margin-bottom: 1em; padding: 1em; background: #ffebee; border-radius: 4px;">${errorMsg}</div><pre class="txt-content">${escaped}</pre>`;
+                        }
                     } else if (isCsv) {
                         // Parse CSV with PapaParse
                         const parsed = Papa.parse(content, {
