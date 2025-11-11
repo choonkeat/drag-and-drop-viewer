@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            display: flex;
+        }
+
+        .md-viewer-sidebar {
+            width: 250px;
+            background: white;
+            border-right: 1px solid #ddd;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            overflow-y: auto;
+            display: none;
+            z-index: 10;
+        }
+
+        .md-viewer-sidebar.visible {
+            display: block;
+        }
+
+        .md-viewer-sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .md-viewer-sidebar-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .md-viewer-sidebar-item {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .md-viewer-sidebar-link {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: #333;
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: background 0.2s;
+            word-break: break-word;
+        }
+
+        .md-viewer-sidebar-link:hover {
+            background: #f5f5f5;
+        }
+
+        .md-viewer-sidebar-link.active {
+            background: #e3f2fd;
+            color: #1976d2;
+            font-weight: 500;
+        }
+
+        .md-viewer-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+        }
+
+        body.has-sidebar .md-viewer-container {
+            margin-left: 250px;
+        }
+
+        .md-viewer-dropzone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f5f5;
+            color: #999;
+            font-size: 2rem;
+            z-index: 1;
+        }
+
+        .md-viewer-dropzone.drag-over {
+            background: #e8f5e9;
+            color: #4CAF50;
+        }
+
+        .md-viewer-content {
+            background: white;
+            padding: 3rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none;
+            position: relative;
+            z-index: 2;
+        }
+
+        .md-viewer-content.visible {
+            display: block;
+        }
+
+        body.drag-active::before {
+            content: 'Drop Markdown file here';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(76, 175, 80, 0.95);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .md-viewer-content h1,
+        .md-viewer-content h2,
+        .md-viewer-content h3,
+        .md-viewer-content h4,
+        .md-viewer-content h5,
+        .md-viewer-content h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .md-viewer-content h1 {
+            font-size: 2em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.3em;
+        }
+
+        .md-viewer-content h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.3em;
+        }
+
+        .md-viewer-content h3 { font-size: 1.25em; }
+        .md-viewer-content h4 { font-size: 1em; }
+        .md-viewer-content h5 { font-size: 0.875em; }
+        .md-viewer-content h6 { font-size: 0.85em; color: #666; }
+
+        .md-viewer-content p {
+            margin-bottom: 1em;
+        }
+
+        .md-viewer-content code {
+            background: #f6f8fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .md-viewer-content pre {
+            background: #f6f8fa;
+            padding: 1em;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+        }
+
+        .md-viewer-content pre code {
+            background: none;
+            padding: 0;
+            font-size: 0.875em;
+        }
+
+        .md-viewer-content blockquote {
+            border-left: 4px solid #ddd;
+            padding-left: 1em;
+            margin-left: 0;
+            color: #666;
+            margin-bottom: 1em;
+        }
+
+        .md-viewer-content ul,
+        .md-viewer-content ol {
+            margin-bottom: 1em;
+            padding-left: 2em;
+        }
+
+        .md-viewer-content li {
+            margin-bottom: 0.25em;
+        }
+
+        .md-viewer-content a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+
+        .md-viewer-content a:hover {
+            text-decoration: underline;
+        }
+
+        .md-viewer-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1em;
+        }
+
+        .md-viewer-content table th,
+        .md-viewer-content table td {
+            border: 1px solid #ddd;
+            padding: 0.5em;
+            text-align: left;
+        }
+
+        .md-viewer-content table th {
+            background: #f6f8fa;
+            font-weight: 600;
+        }
+
+        .md-viewer-content img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .md-viewer-content hr {
+            border: none;
+            border-top: 2px solid #eee;
+            margin: 2em 0;
+        }
+
+        .md-viewer-filename {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="md-viewer-sidebar" id="sidebar">
+        <div class="md-viewer-sidebar-header">Files</div>
+        <ul class="md-viewer-sidebar-list" id="fileList"></ul>
+    </div>
+    <div class="md-viewer-container">
+        <div class="md-viewer-dropzone" id="dropzone">
+            Drop a Markdown file here
+        </div>
+        <div class="md-viewer-content" id="content">
+            <div class="md-viewer-filename" id="filename"></div>
+            <div id="rendered"></div>
+        </div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const content = document.getElementById('content');
+        const rendered = document.getElementById('rendered');
+        const filename = document.getElementById('filename');
+        const sidebar = document.getElementById('sidebar');
+        const fileList = document.getElementById('fileList');
+
+        // History management
+        const fileHistory = {};
+        let historyIndex = 0;
+
+        // Prevent default drag behaviors on the entire document
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Handle drag over entire document
+        let dragCounter = 0;
+
+        document.body.addEventListener('dragenter', (e) => {
+            dragCounter++;
+            document.body.classList.add('drag-active');
+        });
+
+        document.body.addEventListener('dragleave', (e) => {
+            dragCounter--;
+            if (dragCounter === 0) {
+                document.body.classList.remove('drag-active');
+            }
+        });
+
+        document.body.addEventListener('drop', (e) => {
+            dragCounter = 0;
+            document.body.classList.remove('drag-active');
+        });
+
+        // Handle drop
+        document.body.addEventListener('drop', handleDrop);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length > 0) {
+                // Filter for .md files only
+                const mdFiles = Array.from(files).filter(f => f.name.endsWith('.md'));
+
+                if (mdFiles.length === 0) {
+                    alert('Please drop at least one .md file');
+                    return;
+                }
+
+                // Process all markdown files sequentially
+                processFilesSequentially(mdFiles);
+            }
+        }
+
+        async function processFilesSequentially(files) {
+            const startIndex = historyIndex + 1;
+
+            // Read all files first
+            const fileContents = [];
+            for (let i = 0; i < files.length; i++) {
+                const content = await readFile(files[i]);
+                if (content) {
+                    fileContents.push(content);
+                }
+            }
+
+            // Store each in history with a hash change and small delay
+            for (let i = 0; i < fileContents.length; i++) {
+                historyIndex++;
+                const hashKey = historyIndex;
+                fileHistory[hashKey] = fileContents[i];
+
+                // Add to sidebar
+                addToSidebar(hashKey, fileContents[i].filename);
+
+                // Push each to browser history with render
+                window.location.hash = hashKey;
+                renderContent(fileContents[i].html, fileContents[i].filename);
+
+                // Small delay to ensure browser history records each state
+                if (i < fileContents.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+            }
+        }
+
+        function addToSidebar(hashKey, fname) {
+            const li = document.createElement('li');
+            li.className = 'md-viewer-sidebar-item';
+
+            const a = document.createElement('a');
+            a.href = '#' + hashKey;
+            a.className = 'md-viewer-sidebar-link';
+            a.textContent = fname;
+            a.dataset.hashKey = hashKey;
+
+            li.appendChild(a);
+            fileList.appendChild(li);
+
+            // Show sidebar
+            sidebar.classList.add('visible');
+            document.body.classList.add('has-sidebar');
+        }
+
+        function updateSidebarActive() {
+            const currentHash = window.location.hash.substring(1);
+            const links = fileList.querySelectorAll('.md-viewer-sidebar-link');
+            links.forEach(link => {
+                if (link.dataset.hashKey === currentHash) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        }
+
+        function readFile(file) {
+            return new Promise((resolve) => {
+                if (!file.name.endsWith('.md')) {
+                    resolve(null);
+                    return;
+                }
+
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const markdown = e.target.result;
+                    const html = marked.parse(markdown);
+
+                    resolve({
+                        filename: file.name,
+                        markdown: markdown,
+                        html: html
+                    });
+                };
+
+                reader.readAsText(file);
+            });
+        }
+
+        function renderContent(html, fname) {
+            rendered.innerHTML = html;
+            filename.textContent = fname;
+
+            // Show content, hide dropzone
+            dropzone.style.display = 'none';
+            content.classList.add('visible');
+
+            // Update sidebar active state
+            updateSidebarActive();
+        }
+
+        // Handle browser back/forward
+        window.addEventListener('hashchange', () => {
+            const hashKey = parseInt(window.location.hash.substring(1));
+            if (hashKey && fileHistory[hashKey]) {
+                const entry = fileHistory[hashKey];
+                renderContent(entry.html, entry.filename);
+            } else if (!window.location.hash) {
+                // No hash means back to initial state
+                dropzone.style.display = 'flex';
+                content.classList.remove('visible');
+                updateSidebarActive();
+            }
+        });
+
+        // Handle initial hash on page load
+        if (window.location.hash) {
+            const hashKey = parseInt(window.location.hash.substring(1));
+            if (fileHistory[hashKey]) {
+                const entry = fileHistory[hashKey];
+                renderContent(entry.html, entry.filename);
+            }
+        }
+    </script>
+</body>
+</html>
