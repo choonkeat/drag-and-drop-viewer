@@ -31,11 +31,22 @@
             overflow-y: auto;
             flex-shrink: 0;
             display: none;
+            transition: transform 0.3s ease;
         }
 
-        /* Desktop: sidebar always visible when has files */
+        /* Desktop: sidebar visible when has files and not hidden */
         body.has-sidebar .md-viewer-sidebar {
             display: block;
+        }
+
+        body.has-sidebar.sidebar-hidden .md-viewer-sidebar {
+            transform: translateX(-100%);
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            z-index: 1000;
         }
 
         .md-viewer-sidebar-header {
@@ -112,9 +123,24 @@
 
         .md-viewer-sidebar-toggle {
             display: none;
+            position: fixed;
+            top: 0.75rem;
+            left: 0.75rem;
+            z-index: 1001;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 1.25rem;
         }
 
-        /* Mobile: sidebar becomes slide-over */
+        body.has-sidebar .md-viewer-sidebar-toggle {
+            display: block;
+        }
+
+        /* Mobile: sidebar becomes slide-over and always slides from left */
         @media (max-width: 768px) {
             body.has-sidebar .md-viewer-sidebar {
                 position: fixed;
@@ -123,11 +149,13 @@
                 bottom: 0;
                 width: 100%;
                 max-width: 280px;
-                transform: translateX(-100%);
-                transition: transform 0.3s ease;
                 box-shadow: 2px 0 8px rgba(0,0,0,0.1);
                 z-index: 1000;
                 display: block;
+            }
+
+            body.has-sidebar.sidebar-hidden .md-viewer-sidebar {
+                transform: translateX(-100%);
             }
 
             body.has-sidebar .md-viewer-sidebar.mobile-open {
@@ -146,21 +174,6 @@
                 font-size: 1.25rem;
                 padding: 1rem;
                 text-align: center;
-            }
-
-            body.has-sidebar .md-viewer-sidebar-toggle {
-                display: block;
-                position: fixed;
-                top: 0.75rem;
-                left: 0.75rem;
-                z-index: 1001;
-                background: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 0.5rem 0.75rem;
-                cursor: pointer;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                font-size: 1.25rem;
             }
         }
 
@@ -434,16 +447,29 @@
         // History management
         const fileHistory = {};
         let historyIndex = 0;
-        let sidebarOpen = false;
+        let sidebarOpen = true; // Start with sidebar open
 
-        // Toggle sidebar on mobile
+        // Toggle sidebar
         sidebarToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             sidebarOpen = !sidebarOpen;
-            if (sidebarOpen) {
-                sidebar.classList.add('mobile-open');
+
+            if (window.innerWidth <= 768) {
+                // Mobile: use mobile-open class for slide animation
+                if (sidebarOpen) {
+                    sidebar.classList.add('mobile-open');
+                    document.body.classList.remove('sidebar-hidden');
+                } else {
+                    sidebar.classList.remove('mobile-open');
+                    document.body.classList.add('sidebar-hidden');
+                }
             } else {
-                sidebar.classList.remove('mobile-open');
+                // Desktop: toggle sidebar-hidden class
+                if (sidebarOpen) {
+                    document.body.classList.remove('sidebar-hidden');
+                } else {
+                    document.body.classList.add('sidebar-hidden');
+                }
             }
         });
 
@@ -453,6 +479,7 @@
                 if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
                     sidebarOpen = false;
                     sidebar.classList.remove('mobile-open');
+                    document.body.classList.add('sidebar-hidden');
                 }
             }
         });
@@ -715,6 +742,7 @@
         function renderContent(html, fname) {
             rendered.innerHTML = html;
             filename.textContent = fname;
+            document.title = fname;
 
             // Show content, hide dropzone
             dropzone.style.display = 'none';
