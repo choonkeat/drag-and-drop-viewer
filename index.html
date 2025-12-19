@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/asciidoctor.js/1.5.9/asciidoctor.min.js" integrity="sha512-WGKgUhSmR90R62qWg1bEM3EnlBwvPIBWc1tErWTvs+HQOb4SUeGkAs+FIvRV5d48Y/zqgKNLnzTply+7Tlcmqw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         * {
             margin: 0;
@@ -419,9 +420,9 @@
     </div>
     <div class="md-viewer-container">
         <div class="md-viewer-dropzone" id="dropzone">
-            Drop or click to select files (.md, .txt, .csv, .json)
+            Drop or click to select files (.md, .txt, .csv, .json, .adoc, .asciidoc)
         </div>
-        <input type="file" id="fileInput" accept=".md,.txt,.csv,.json" multiple style="display: none;">
+        <input type="file" id="fileInput" accept=".md,.txt,.csv,.json,.adoc,.asciidoc" multiple style="display: none;">
         <div class="md-viewer-content" id="content">
             <div class="md-viewer-filename" id="filename"></div>
             <div id="rendered"></div>
@@ -500,7 +501,7 @@
             const files = e.target.files;
             if (files.length > 0) {
                 const validFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv') || f.name.endsWith('.json')
+                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv') || f.name.endsWith('.json') || f.name.endsWith('.adoc') || f.name.endsWith('.asciidoc')
                 );
                 if (validFiles.length > 0) {
                     processFilesSequentially(validFiles);
@@ -548,13 +549,13 @@
             const files = dt.files;
 
             if (files.length > 0) {
-                // Filter for .md, .txt, .csv, and .json files
+                // Filter for .md, .txt, .csv, .json, .adoc, and .asciidoc files
                 const validFiles = Array.from(files).filter(f =>
-                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv') || f.name.endsWith('.json')
+                    f.name.endsWith('.md') || f.name.endsWith('.txt') || f.name.endsWith('.csv') || f.name.endsWith('.json') || f.name.endsWith('.adoc') || f.name.endsWith('.asciidoc')
                 );
 
                 if (validFiles.length === 0) {
-                    alert('Please drop at least one .md, .txt, .csv, or .json file');
+                    alert('Please drop at least one .md, .txt, .csv, .json, .adoc, or .asciidoc file');
                     return;
                 }
 
@@ -641,8 +642,9 @@
                 const isTxt = file.name.endsWith('.txt');
                 const isCsv = file.name.endsWith('.csv');
                 const isJson = file.name.endsWith('.json');
+                const isAsciidoc = file.name.endsWith('.adoc') || file.name.endsWith('.asciidoc');
 
-                if (!isMd && !isTxt && !isCsv && !isJson) {
+                if (!isMd && !isTxt && !isCsv && !isJson && !isAsciidoc) {
                     resolve(null);
                     return;
                 }
@@ -655,6 +657,10 @@
 
                     if (isMd) {
                         html = marked.parse(content);
+                    } else if (isAsciidoc) {
+                        // Render AsciiDoc using Asciidoctor.js
+                        const asciidoctor = Asciidoctor();
+                        html = asciidoctor.convert(content, { safe: 'safe', standalone: false });
                     } else if (isTxt) {
                         // Escape HTML to prevent injection
                         const escaped = content
@@ -779,6 +785,55 @@
                 content.classList.remove('visible');
             }
         }
+
+        // Load files from query parameter (for CLI usage)
+        async function loadFilesFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const filesParam = params.get('files');
+
+            if (!filesParam) {
+                return; // No files specified, use normal drag-and-drop
+            }
+
+            // Parse comma-separated file paths
+            const filepaths = filesParam.split(',').map(p => p.trim()).filter(p => p);
+
+            if (filepaths.length === 0) {
+                return;
+            }
+
+            // Fetch and process each file
+            const fileObjects = [];
+            for (const filepath of filepaths) {
+                try {
+                    const response = await fetch(`/api/read?path=${encodeURIComponent(filepath)}`);
+                    const data = await response.json();
+
+                    if (data.error) {
+                        console.error(`Error loading ${filepath}:`, data.error);
+                        alert(`Error loading ${filepath}: ${data.error}`);
+                        continue;
+                    }
+
+                    // Create a File-like object
+                    const blob = new Blob([data.content], { type: 'text/plain' });
+                    const file = new File([blob], data.filename, { type: 'text/plain' });
+
+                    fileObjects.push(file);
+                } catch (err) {
+                    console.error(`Failed to fetch ${filepath}:`, err);
+                    alert(`Failed to fetch ${filepath}: ${err.message}`);
+                }
+            }
+
+            // Process the files using existing logic
+            if (fileObjects.length > 0) {
+                processFilesSequentially(fileObjects);
+            }
+        }
+
+        // Load files on page load if query parameter exists
+        loadFilesFromQuery();
     </script>
 </body>
 </html>
